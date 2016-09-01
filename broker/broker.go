@@ -1,0 +1,136 @@
+package broker
+
+import (
+	simplLogger "github.com/supersid/iris2/logger"
+	"github.com/supersid/iris2/service"
+	"github.com/Sirupsen/logrus"
+	zmq "github.com/pebbe/zmq4"
+	"runtime"
+	"time"
+	"fmt"
+	"os"
+	"github.com/supersid/iris2/request"
+)
+
+const (
+	DEVELOPMENT_ENV = "DEVELOPMENT_ENV"
+	POLL_FREQUENCY  = 100 * time.Millisecond
+)
+
+var logger *logrus.Logger
+
+type Broker struct{
+	brokerUrl string
+	socket    *zmq.Socket
+	Services  map[string]*service.Service
+	DebugMode bool
+}
+
+func NewBroker(brokerUrl string, env string) (*Broker, error){
+	broker := &Broker{
+		brokerUrl: brokerUrl,
+		 Services: make(map[string]*service.Service),
+		DebugMode: false,
+	}
+
+
+	socket, err := zmq.NewSocket(zmq.ROUTER)
+
+	if err != nil {
+		logger.Error(err.Error())
+		return nil, err
+	}
+
+	broker.socket = socket
+
+	if env == DEVELOPMENT_ENV {
+		broker.DebugMode = true
+	}
+
+	return broker, nil
+}
+
+func (broker *Broker) Process(){
+	poller := zmq.NewPoller()
+	poller.Add(broker.socket, zmq.POLLIN)
+
+
+	for {
+		if broker.DebugMode {
+			logger.Debug("Polling.")
+		}
+
+		incomingSocket, err := poller.Poll(POLL_FREQUENCY)
+		if err != nil{
+			logger.Error(err.Error())
+		}
+
+
+		if len(incomingSocket) > 0 {
+			msg, err := broker.socket.RecvMessage(0)
+
+			if err != nil {
+				logger.Error(fmt.Sprintf("While Receving message on the broker: %s", err.Error()))
+				continue
+			}
+
+			if broker.DebugMode {
+				for m, index := range msg {
+					logger.Debug(fmt.Sprintf("%d. %s", index, m))
+				}
+			}
+
+			req, err := request.UnWrapMessage(msg)
+
+			if err != nil {
+				logger.Error("Error unwrapping message: %s", err.Error())
+				continue
+			}
+
+			if broker.DebugMode {
+				logger.Debug(fmt.Sprintf("The Request is %s:", req))
+			}
+
+			broker.ProcessMessage(req)
+		}
+	}
+}
+
+func (broker *Broker) Close() {
+	broker.socket.Close()
+}
+
+func Start(brokerUrl string){
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	env := os.Getenv("IRIS_ENV")
+
+	if env == "" {
+		env = DEVELOPMENT_ENV
+	}
+
+	logger = simplLogger.Init(env, "")
+	broker, err := NewBroker(brokerUrl, env)
+
+	if err != nil {
+		logger.Error("Broker creation error:  %s", err.Error())
+		panic(err)
+	}
+
+	err = broker.socket.Bind(brokerUrl)
+
+	if err != nil{
+		logger.Error("Broker bind error: %s", err.Error())
+		panic(err)
+	}
+
+
+	defer broker.Close()
+
+	if err != nil {
+		logger.Error("Broker creation failed.")
+		panic(err)
+	}
+
+	logger.Info(fmt.Sprintf("Launching Broker on %s", brokerUrl))
+	broker.Process()
+}
