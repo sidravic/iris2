@@ -3,6 +3,7 @@ package broker
 import (
 	"github.com/supersid/iris2/request"
 	"github.com/supersid/iris2/service"
+	"fmt"
 )
 
 
@@ -23,9 +24,17 @@ func (broker *Broker) WorkerReadyHandler(req request.Request) {
 		errors: make([]error, 1),
 		broker: broker,
 	}
-	handler.findOrCreateService(req.Data)
+	handler.findOrCreateService(req.ServiceName)
 	handler.AddServiceToBroker()
 	handler.AddServiceWorkerToService(req)
+	err, req, serviceWorker := handler.processRequests()
+
+	if err != nil {
+		logger.Info(fmt.Sprintf("[client_request_handler.go] %s", err.Error()))
+	}else{
+		logger.Info(fmt.Sprintf("[client_request_handler.go] Processing request %s with service worker %s", req, serviceWorker))
+		handler.broker.processClientRequest(req, serviceWorker)
+	}
 }
 
 func (handler *WorkerReadyHandler) findOrCreateService(serviceName string) {
@@ -44,9 +53,11 @@ func (handler *WorkerReadyHandler) AddServiceToBroker(){
 
 
 func (handler *WorkerReadyHandler) AddServiceWorkerToService(req request.Request){
-	if !(handler.serviceAlreadyPresent) {
-		serviceWorker := service.NewServiceWorker(req.ID, req.Sender)
-		handler.service.AddServiceWorker(serviceWorker)
-	}
+	serviceWorker := service.NewServiceWorker(req.ID, req.Sender)
+	handler.service.AddServiceWorker(serviceWorker)
+}
 
+func (handler *WorkerReadyHandler) processRequests() (error, request.Request, *service.ServiceWorker){
+	err, req, sw :=  handler.service.ProcessRequests()
+	return err, req, sw
 }

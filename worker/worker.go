@@ -26,7 +26,7 @@ type Worker struct{
 	BrokerUrl       string
 	ServiceName     string
 	LastHeartBeatAt time.Time
-	socket          *zmq.Socket
+	Socket          *zmq.Socket
 	DebugMode       bool
 }
 
@@ -45,7 +45,7 @@ func NewWorker(brokerUrl string, serviceName string, env string) (*Worker, error
 		return nil, err
 	}
 
-	worker.socket = socket
+	worker.Socket = socket
 
 	if env == constants.DEVELOPMENT_ENV || env == constants.TEST_ENV {
 		worker.DebugMode = true
@@ -57,38 +57,70 @@ func NewWorker(brokerUrl string, serviceName string, env string) (*Worker, error
 func (worker *Worker) SendReadyMessage() (bool){
 	sendStatus := true
 
-	command  := constants.WORKER_READY
-	data     := worker.ServiceName
-	SenderID := worker.ID
-	response := ""
+	command     := constants.WORKER_READY
+	data        := worker.ServiceName
+	SenderID    := worker.ID
+	response    := ""
+	serviceName := worker.ServiceName
 
-	msg, err := request.CreateMessage(SenderID, command, data, response)
-	if err != nil {
-		sendStatus = false
-		logger.Error("Message creation error: %s", err.Error())
-
-	}
-
-	logger.Info(msg)
-	_, err = worker.socket.SendMessage(msg)
+	msg, err := request.CreateMessage(SenderID, command, data, response, serviceName, "")
 
 	if err != nil {
 		sendStatus = false
-		logger.Error(fmt.Sprintf("Error while sending WORKER_READY message: %s", err.Error()))
+		logger.Error("[worker.go] Message creation error: %s", err.Error())
+		return sendStatus
 	}
 
-	logger.Debug("ReadyMessage Sent.")
+	_, err = worker.Socket.SendMessage(msg)
+
+	if err != nil {
+		sendStatus = false
+		logger.Error(fmt.Sprintf("[worker.go] Error while sending WORKER_READY message: %s", err.Error()))
+	}
+
 	return sendStatus
 }
 
-func (worker *Worker) Process(messageChannel chan []string){
+func (worker *Worker) SendResponse(wr WorkerRequest) (bool){
+	var sendStatus bool
+	command          := constants.WORKER_RESPONSE
+	data             := wr.Data
+	senderID         := worker.ID
+	response         := wr.ResponseData
+	originalSenderId := wr.OriginalClientSenderID
+	serviceName      := wr.ServiceName
+
+	msg, err := request.CreateMessage(senderID, command, data, response, serviceName, originalSenderId)
+
+	if err != nil {
+		sendStatus = false
+		logger.Error("[worker.go] Message creation error: %s", err.Error())
+		return sendStatus
+	}
+
+	_, err = worker.Socket.SendMessage(msg)
+
+	if err != nil {
+		sendStatus = false
+		logger.WithFields(map[string]interface{}{
+			"Command":          command,
+			"data":             data,
+			"senderID":         senderID,
+			"response":         response,
+			"originalSenderId": originalSenderId,
+			"serviceName":      serviceName,
+		}).Error(fmt.Sprintf("[worker.go] Error while sending WORKER_RESPONSE message: %s", err.Error()))
+	}
+
+	return true
+}
+
+func (worker *Worker) Process(messageChannel chan WorkerRequest){
 	poller := zmq.NewPoller()
-	poller.Add(worker.socket, zmq.POLLIN)
+	poller.Add(worker.Socket, zmq.POLLIN)
 
 	for {
-		if worker.DebugMode {
-			logger.Debug("Looping...")
-		}
+		time.Sleep(5 * time.Second)
 		sendStatus := worker.SendReadyMessage()
 
 		if !sendStatus {
@@ -102,13 +134,16 @@ func (worker *Worker) Process(messageChannel chan []string){
 		}
 
 		if len(incomingSockets) > 0 {
-			msg, err := worker.socket.RecvMessage(0)
+			msg, err := worker.Socket.RecvMessage(0)
 
 			if err != nil {
 				logger.Error(fmt.Sprintf("Error while receving messages: %s", err.Error()))
 			}
 
-			messageChannel <- msg
+			if len(msg) > 0 {
+				messageChannel <- NewWorkerRequest(msg)
+			}
+
 		}
 	}
 }
@@ -128,7 +163,7 @@ func GetLogger() *logrus.Logger{
 	return logger;
 }
 
-func Start(brokerUrl string, serviceName string) (chan []string){
+func Start(brokerUrl string, serviceName string) (chan WorkerRequest, *Worker){
 	worker, err := NewWorker(brokerUrl, serviceName, env)
 
 	if err != nil {
@@ -136,15 +171,15 @@ func Start(brokerUrl string, serviceName string) (chan []string){
 		panic(err)
 	}
 
-	err = worker.socket.Connect(brokerUrl)
+	err = worker.Socket.Connect(brokerUrl)
 
 	if err != nil {
 		logger.Error(fmt.Sprintf("Bind Error: %s", err.Error()))
 		panic(err)
 	}
 
-	messageChannel := make(chan []string)
+	messageChannel := make(chan WorkerRequest)
 	go worker.Process(messageChannel)
-	return messageChannel
+	return messageChannel, worker
 
 }

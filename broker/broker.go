@@ -20,19 +20,20 @@ const (
 var logger *logrus.Logger
 
 type Broker struct{
-	brokerUrl string
-	socket    *zmq.Socket
-	Services  map[string]*service.Service
-	DebugMode bool
+	brokerUrl   string
+	Socket      *zmq.Socket
+	Services    map[string]*service.Service
+	DebugMode   bool
+	SocketCache *SocketIdCache
 }
 
 func NewBroker(brokerUrl string, env string) (*Broker, error){
 	broker := &Broker{
 		brokerUrl: brokerUrl,
-		 Services: make(map[string]*service.Service),
+		Services: make(map[string]*service.Service),
 		DebugMode: false,
+		SocketCache: NewSocketIdCache(),
 	}
-
 
 	socket, err := zmq.NewSocket(zmq.ROUTER)
 
@@ -41,7 +42,7 @@ func NewBroker(brokerUrl string, env string) (*Broker, error){
 		return nil, err
 	}
 
-	broker.socket = socket
+	broker.Socket = socket
 
 	if env == DEVELOPMENT_ENV {
 		broker.DebugMode = true
@@ -52,14 +53,10 @@ func NewBroker(brokerUrl string, env string) (*Broker, error){
 
 func (broker *Broker) Process(){
 	poller := zmq.NewPoller()
-	poller.Add(broker.socket, zmq.POLLIN)
+	poller.Add(broker.Socket, zmq.POLLIN)
 
 
 	for {
-		if broker.DebugMode {
-			logger.Debug("Polling.")
-		}
-
 		incomingSocket, err := poller.Poll(POLL_FREQUENCY)
 		if err != nil{
 			logger.Error(err.Error())
@@ -67,17 +64,11 @@ func (broker *Broker) Process(){
 
 
 		if len(incomingSocket) > 0 {
-			msg, err := broker.socket.RecvMessage(0)
+			msg, err := broker.Socket.RecvMessage(0)
 
 			if err != nil {
 				logger.Error(fmt.Sprintf("While Receving message on the broker: %s", err.Error()))
 				continue
-			}
-
-			if broker.DebugMode {
-				for m, index := range msg {
-					logger.Debug(fmt.Sprintf("%d. %s", index, m))
-				}
 			}
 
 			req, err := request.UnWrapMessage(msg)
@@ -87,17 +78,13 @@ func (broker *Broker) Process(){
 				continue
 			}
 
-			if broker.DebugMode {
-				logger.Debug(fmt.Sprintf("The Request is %s:", req))
-			}
-
 			broker.ProcessMessage(req)
 		}
 	}
 }
 
 func (broker *Broker) Close() {
-	broker.socket.Close()
+	broker.Socket.Close()
 }
 
 func Start(brokerUrl string){
@@ -116,7 +103,7 @@ func Start(brokerUrl string){
 		panic(err)
 	}
 
-	err = broker.socket.Bind(brokerUrl)
+	err = broker.Socket.Bind(brokerUrl)
 
 	if err != nil{
 		logger.Error("Broker bind error: %s", err.Error())

@@ -7,7 +7,6 @@ import (
 	"github.com/supersid/iris2/service"
 )
 
-
 type ProcessMessage interface {
 	ProcessMessage(request.Request)
 }
@@ -20,6 +19,10 @@ func (broker *Broker) ProcessMessage(req request.Request) {
 	switch req.Command {
 	case constants.WORKER_READY:
 		broker.WorkerReadyHandler(req)
+	case constants.CLIENT_REQUEST:
+		broker.ClientRequestHandler(req)
+	case constants.CLIENT_REQUEST_TO_WORKER:
+		panic("Damn!")
 	default:
 		panic("OMFG")
 	}
@@ -44,6 +47,10 @@ func (broker *Broker) FindOrCreateService(serviceName string) (bool, *service.Se
 			WaitingWorkers: make([]*service.ServiceWorker, 0),
 			Workers:        make(map[string]*service.ServiceWorker),
 		}
+
+		logger.WithFields(map[string]interface{}{
+			"ServiceName": serviceName,
+		}).Info("New service created.")
 	}
 
 	return alreadyPresent, s
@@ -52,5 +59,3 @@ func (broker *Broker) FindOrCreateService(serviceName string) (bool, *service.Se
 func (broker *Broker) AddService (serviceName string, s *service.Service){
 	broker.Services[serviceName] = s
 }
-
-

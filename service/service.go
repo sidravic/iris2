@@ -2,7 +2,16 @@ package service
 
 import (
 	"github.com/supersid/iris2/request"
+	"os"
+	"runtime"
+	"github.com/supersid/iris2/constants"
+	simplLogger "github.com/supersid/iris2/logger"
+	"github.com/Sirupsen/logrus"
+	"fmt"
+	"errors"
 )
+
+var logger *logrus.Logger
 
 type Service struct {
 	ServiceName    string
@@ -35,6 +44,65 @@ func (s *Service) AddServiceWorker(sw *ServiceWorker){
 	if !alreadyPresent{
 		s.WaitingWorkers = append(s.WaitingWorkers, sw)
 		s.Workers[sw.Identity] = sw
+		logger.Info(fmt.Sprintf("[service.go] Added new service worker ID: %s to service %s", sw.Identity, s.ServiceName))
 	}
+
+}
+
+func (s *Service) AddClientRequest(req request.Request){
+	logger.Info(fmt.Sprintf("[service.go] New Request from client ID %s for %s service", req.ID, req.ServiceName))
+	s.ClientRequest = append(s.ClientRequest, req)
+}
+
+func (s *Service) ProcessRequests()(error, request.Request, *ServiceWorker){
+	var req request.Request
+	var sw *ServiceWorker
+	var err error
+	if len(s.ClientRequest) == 0 {
+		logger.Info("No client requests to process.")
+		err = errors.New("[service.go] No client requests to process.")
+
+	}
+
+	logger.Info(fmt.Sprintf("%d Waiting workers for %s service", len(s.WaitingWorkers), s.ServiceName))
+	if len(s.WaitingWorkers) == 0 {
+		logger.Info("No workers available to process requests.")
+		err = errors.New("[service.go] No workers available to process requests.")
+	}
+
+	if err != nil {
+
+		return err, request.Request{}, &ServiceWorker{}
+	}
+
+
+	req = s.PopFirstRequest()
+	sw = s.PopFirstWorker()
+	logger.Debug("[service.go] Waiting worker is %s", sw)
+	return nil, req, sw
+}
+
+func (s *Service) PopFirstRequest()(request.Request){
+	req := s.ClientRequest[0]
+	s.ClientRequest = s.ClientRequest[1:]
+	return req
+}
+
+func (s *Service) PopFirstWorker()(*ServiceWorker){
+	worker := s.WaitingWorkers[0]
+	s.WaitingWorkers = s.WaitingWorkers[1:]
+	delete(s.Workers, worker.Identity)
+	return worker
+}
+
+func init(){
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	env := os.Getenv("IRIS_ENV")
+
+	if env == "" {
+		env = constants.DEVELOPMENT_ENV
+	}
+
+	logger = simplLogger.Init(env, "")
 
 }
