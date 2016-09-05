@@ -10,8 +10,13 @@ import (
 	"github.com/supersid/iris2/constants"
 	"github.com/supersid/iris2/request"
 	"fmt"
+	"time"
+	"errors"
 )
 
+const (
+	POLL_TIMEOUT_FREQUENCY = 200 * time.Millisecond
+)
 var logger *logrus.Logger
 
 type Client struct {
@@ -35,6 +40,32 @@ func init(){
 
 func (client *Client) setIdentity() {
 	client.ID = uuid.NewV4().String()
+}
+
+func (client *Client) ReceiveMessage(waitFor time.Duration) (ClientResponse, error){
+	sockets, err := client.poller.Poll(waitFor)
+
+	if err != nil {
+		logger.Error(fmt.Sprint("[client.go] Error while receiving messages: %s", err.Error()))
+		return ClientResponse{}, err
+	}
+
+	if len(sockets) == 0 {
+		err = errors.New("No Data")
+		return ClientResponse{}, err
+	}
+
+	m, err := client.Socket.RecvMessage(0)
+
+	if err != nil {
+		logger.Error(fmt.Sprintf("[client.go] Error while receiving message from socket: %s", err.Error()))
+		return ClientResponse{}, err
+	}
+
+	fmt.Println(m)
+	res := NewClientResponse(m)
+
+	return res, nil
 }
 
 func (client *Client) SendMessage(serviceName, message string){

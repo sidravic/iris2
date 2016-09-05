@@ -21,8 +21,8 @@ func (broker *Broker) ProcessMessage(req request.Request) {
 		broker.WorkerReadyHandler(req)
 	case constants.CLIENT_REQUEST:
 		broker.ClientRequestHandler(req)
-	case constants.CLIENT_REQUEST_TO_WORKER:
-		panic("Damn!")
+	case constants.WORKER_RESPONSE:
+		broker.WorkerResponseHandler(req)
 	default:
 		panic("OMFG")
 	}

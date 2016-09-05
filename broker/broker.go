@@ -14,7 +14,7 @@ import (
 
 const (
 	DEVELOPMENT_ENV = "DEVELOPMENT_ENV"
-	POLL_FREQUENCY  = 100 * time.Millisecond
+	POLL_FREQUENCY  = 30 * time.Millisecond
 )
 
 var logger *logrus.Logger
@@ -24,7 +24,6 @@ type Broker struct{
 	Socket      *zmq.Socket
 	Services    map[string]*service.Service
 	DebugMode   bool
-	SocketCache *SocketIdCache
 }
 
 func NewBroker(brokerUrl string, env string) (*Broker, error){
@@ -32,7 +31,6 @@ func NewBroker(brokerUrl string, env string) (*Broker, error){
 		brokerUrl: brokerUrl,
 		Services: make(map[string]*service.Service),
 		DebugMode: false,
-		SocketCache: NewSocketIdCache(),
 	}
 
 	socket, err := zmq.NewSocket(zmq.ROUTER)

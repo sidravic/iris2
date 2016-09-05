@@ -66,18 +66,11 @@ func (handler *ClientRequestHandler) processRequests() (error, request.Request, 
 
 func (broker *Broker) processClientRequest(req request.Request, sw *service.ServiceWorker){
 	logger.Info(fmt.Sprintf("[client_request_handler.go] Processing client request"))
-	broker.SocketCache.Store(req.ID, req.Sender)
+	SocketIdCacheStore(req.ID, req.Sender)
 	msg, err := request.CreateMessage("", constants.CLIENT_REQUEST_TO_WORKER, req.Data, "", req.ServiceName, req.ID)
 
 	if err != nil {
-		logger.WithFields(map[string]interface{}{
-			"SenderIdentity": req.ID,
-			"Command": constants.CLIENT_REQUEST_TO_WORKER,
-			"Data":req.Data,
-			"ResponseData":"",
-			"ServiceName":req.ServiceName,
-			"OrigianlSenderId": req.Sender,
-		}).Error("[client_request_handler.go] Unable to create message")
+		request.LogRequest(logger, req).Error("[client_request_handler.go] Unable to create message")
 		return
 	}
 

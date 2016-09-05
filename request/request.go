@@ -2,21 +2,20 @@ package request
 
 import (
 	"encoding/json"
-	"github.com/Sirupsen/logrus"
 	"fmt"
 	"github.com/satori/go.uuid"
+	"github.com/Sirupsen/logrus"
 )
 
-var logger *logrus.Logger
-
 type Request struct {
-	RequestId   string
-	Sender      string
-	ID          string
-	Data        string
-	Response    string
-	Command     string
-	ServiceName string
+	RequestId      string
+	Sender         string
+	ID             string
+	Data           string
+	Response       string
+	Command        string
+	ServiceName    string
+	OriginalSender string
 }
 
 func CreateMessage(senderId, command, data, responseData, serviceName, originalSenderId string) ([]byte, error) {
@@ -55,15 +54,30 @@ func UnWrapMessage(msg []string) (Request, error){
 	}
 
 	req := Request{
-		RequestId:   payload[6],
-		Sender:      sender,
-		Command:     payload[1],
-		ID:          payload[2],
-		Data:        payload[3],
-		Response:    payload[4],
-		ServiceName: payload[5],
+		RequestId:      payload[6],
+		Sender:         sender,
+		Command:        payload[1],
+		ID:             payload[2],
+		Data:           payload[3],
+		Response:       payload[4],
+		ServiceName:    payload[5],
+		OriginalSender: payload[0],
 	}
 	return req, nil
+}
+
+
+func LogRequest(logger *logrus.Logger, req Request) *logrus.Entry{
+	entry := logger.WithFields(map[string]interface{}{
+		"SenderIdentity": req.ID,
+		"Command": req.Command,
+		"Data":req.Data,
+		"ResponseData":"",
+		"ServiceName":req.ServiceName,
+		"OrigianlSenderId": req.Sender,
+	})
+
+	return entry
 }
 
 

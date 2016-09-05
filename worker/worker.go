@@ -120,7 +120,6 @@ func (worker *Worker) Process(messageChannel chan WorkerRequest){
 	poller.Add(worker.Socket, zmq.POLLIN)
 
 	for {
-		time.Sleep(5 * time.Second)
 		sendStatus := worker.SendReadyMessage()
 
 		if !sendStatus {
@@ -141,7 +140,10 @@ func (worker *Worker) Process(messageChannel chan WorkerRequest){
 			}
 
 			if len(msg) > 0 {
-				messageChannel <- NewWorkerRequest(msg)
+				wr := NewWorkerRequest(msg)
+				if wr.Command == constants.CLIENT_REQUEST_TO_WORKER {
+					messageChannel <- wr
+				}
 			}
 
 		}
