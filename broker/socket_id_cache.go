@@ -8,16 +8,6 @@ import (
 var cache map[string]string
 var mutex sync.Mutex
 
-//type SocketIdCache struct {
-//	cache map[string]string
-//}
-//
-//func NewSocketIdCache() *SocketIdCache{
-//	return &SocketIdCache{
-//		cache: make(map[string]string),
-//	}
-//}
-
 func init(){
 	cache = make(map[string]string)
 }
