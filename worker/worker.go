@@ -46,6 +46,7 @@ func NewWorker(brokerUrl string, serviceName string, env string) (*Worker, error
 	}
 
 	worker.Socket = socket
+	worker.Socket.SetRcvhwm(constants.WORKER_RECV_HWM)
 
 	if env == constants.DEVELOPMENT_ENV || env == constants.TEST_ENV {
 		worker.DebugMode = true
