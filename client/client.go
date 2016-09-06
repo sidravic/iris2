@@ -90,7 +90,7 @@ func (client *Client) SendMessage(serviceName, message string){
 	}
 }
 
-func NewClient(brokerUrl string) (*Client, error) {
+func NewClient(brokerUrl string, sendWaterMark int) (*Client, error) {
 	client := &Client{
 		brokerUrl: brokerUrl,
 		DebugMode: false,
@@ -104,6 +104,7 @@ func NewClient(brokerUrl string) (*Client, error) {
 	}
 
 	client.Socket = socket
+	client.Socket.SetSndhwm(sendWaterMark)
 	client.setIdentity()
 
 	client.poller = zmq.NewPoller()
@@ -124,8 +125,8 @@ func (client *Client) Close() {
 	client.Socket.Close()
 }
 
-func Start(brokerUrl string) (*Client){
-	client, err := NewClient(brokerUrl)
+func Start(brokerUrl string, sendWatermark int) (*Client){
+	client, err := NewClient(brokerUrl, sendWatermark)
 
 	err = client.Socket.Connect(brokerUrl)
 
