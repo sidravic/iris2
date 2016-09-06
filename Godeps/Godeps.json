@@ -1,0 +1,6 @@
+{
+	"ImportPath": "github.com/supersid/iris2",
+	"GoVersion": "go1.7",
+	"GodepVersion": "v74",
+	"Deps": []
+}
