@@ -21,6 +21,7 @@ func (broker *Broker) ClientRequestHandler(req request.Request){
 		broker: broker,
 	}
 
+	handler.addClientToBroker(req)
 	handler.findOrCreateService(req.ServiceName)
 	handler.addServiceToBroker()
 	handler.addServiceWorkerToService(req)
@@ -34,6 +35,10 @@ func (broker *Broker) ClientRequestHandler(req request.Request){
 		handler.broker.processClientRequest(req, serviceWorker)
 	}
 
+}
+
+func (handler *ClientRequestHandler) addClientToBroker(req request.Request){
+	handler.broker.AddClientToBroker(req)
 }
 
 func (handler *ClientRequestHandler) findOrCreateService(serviceName string) {

@@ -15,6 +15,7 @@ import (
 const (
 	DEVELOPMENT_ENV = "DEVELOPMENT_ENV"
 	POLL_FREQUENCY  = 30 * time.Millisecond
+	HEARTBEAT_FREQUENCY = 2500 * time.Millisecond
 )
 
 var logger *logrus.Logger
@@ -23,6 +24,7 @@ type Broker struct{
 	brokerUrl   string
 	Socket      *zmq.Socket
 	Services    map[string]*service.Service
+	Clients     map[string]string
 	DebugMode   bool
 }
 
@@ -30,6 +32,7 @@ func NewBroker(brokerUrl string, env string) (*Broker, error){
 	broker := &Broker{
 		brokerUrl: brokerUrl,
 		Services: make(map[string]*service.Service),
+		Clients:  make(map[string]string),
 		DebugMode: false,
 	}
 
@@ -76,7 +79,10 @@ func (broker *Broker) Process(){
 				continue
 			}
 
+			logger.Info(fmt.Sprintf("No. of clients connected %d", len(broker.Clients)))
 			broker.ProcessMessage(req)
+		}else{
+			broker.PurgeWorkers()
 		}
 	}
 }

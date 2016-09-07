@@ -1,6 +1,6 @@
 package constants
 
-//import "time"
+import "time"
 
 const (
 	DEVELOPMENT_ENV = "DEVELOPMENT_ENV"
@@ -13,4 +13,5 @@ const (
 	CLIENT_REQUEST_TO_WORKER = "CLIENT_REQUEST_TO_WORKER"
 	WORKER_RESPONSE_RELAY = "WORKER_RESPONSE_RELAY"
 	WORKER_RECV_HWM = 1000
+	WORKER_HEARTBEAT_INTERVAL = (3 * time.Second) * 3
 )

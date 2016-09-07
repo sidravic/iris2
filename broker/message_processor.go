@@ -59,3 +59,7 @@ func (broker *Broker) FindOrCreateService(serviceName string) (bool, *service.Se
 func (broker *Broker) AddService (serviceName string, s *service.Service){
 	broker.Services[serviceName] = s
 }
+
+func (broker *Broker) AddClientToBroker(req request.Request){
+	broker.Clients[req.ID] = req.Sender
+}

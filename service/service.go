@@ -9,6 +9,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"fmt"
 	"errors"
+	"time"
 )
 
 var logger *logrus.Logger
@@ -23,12 +24,14 @@ type Service struct {
 type ServiceWorker struct {
 	Identity string
 	Sender   string
+	Expiry   time.Time
 }
 
 func NewServiceWorker(id, sender string) *ServiceWorker{
 	return &ServiceWorker{
 		Identity: id,
 		Sender:   sender,
+		Expiry:   time.Now().Add(constants.WORKER_HEARTBEAT_INTERVAL),
 	}
 }
 
@@ -93,6 +96,39 @@ func (s *Service) PopFirstWorker()(*ServiceWorker){
 	s.WaitingWorkers = s.WaitingWorkers[1:]
 	delete(s.Workers, worker.Identity)
 	return worker
+}
+
+func (s *Service) DeleteWorker(sw *ServiceWorker){
+	delete(s.Workers, sw.Identity)
+
+
+	for i, sworker := range s.WaitingWorkers {
+		if sworker.Identity == sw.Identity {
+			s.WaitingWorkers = append(s.WaitingWorkers[:i], s.WaitingWorkers[i+1:]...)
+			break
+		}
+	}
+
+	logger.Info(fmt.Sprintf("[service.go] Deleting worker with ID: %s", sw.Identity))
+}
+
+func (s *ServiceWorker) UpdateExpiry(){
+	s.Expiry.Add(constants.WORKER_HEARTBEAT_INTERVAL)
+}
+
+func (s *Service) HasNoWorkers() bool{
+	if len(s.WaitingWorkers) == 0 {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (s *Service) ClearAll(){
+	s.ClientRequest = make([]request.Request, 0)
+	s.WaitingWorkers = make([]*ServiceWorker, 0)
+	s.Workers = make(map[string]*ServiceWorker)
+	return
 }
 
 func init(){

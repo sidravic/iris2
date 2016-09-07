@@ -13,6 +13,7 @@ type WorkerReadyHandler struct {
 	service               *service.Service
 	serviceAlreadyPresent bool
 	broker                *Broker
+	serviceWorker         *service.ServiceWorker
 }
 
 type WorkerReadyHandlersIntF interface  {
@@ -25,8 +26,9 @@ func (broker *Broker) WorkerReadyHandler(req request.Request) {
 		broker: broker,
 	}
 	handler.findOrCreateService(req.ServiceName)
-	handler.AddServiceToBroker()
-	handler.AddServiceWorkerToService(req)
+	handler.addServiceToBroker()
+	handler.addServiceWorkerToService(req)
+	handler.updateServiceWorkerHeartBeatExpiry()
 	err, req, serviceWorker := handler.processRequests()
 
 	if err != nil {
@@ -45,16 +47,21 @@ func (handler *WorkerReadyHandler) findOrCreateService(serviceName string) {
 
 }
 
-func (handler *WorkerReadyHandler) AddServiceToBroker(){
+func (handler *WorkerReadyHandler) addServiceToBroker(){
 	if !(handler.serviceAlreadyPresent) {
 		handler.broker.AddService(handler.service.ServiceName, handler.service)
 	}
 }
 
 
-func (handler *WorkerReadyHandler) AddServiceWorkerToService(req request.Request){
+func (handler *WorkerReadyHandler) addServiceWorkerToService(req request.Request){
 	serviceWorker := service.NewServiceWorker(req.ID, req.Sender)
+	handler.serviceWorker = serviceWorker
 	handler.service.AddServiceWorker(serviceWorker)
+}
+
+func (handler *WorkerReadyHandler) updateServiceWorkerHeartBeatExpiry(){
+	handler.serviceWorker.UpdateExpiry()
 }
 
 func (handler *WorkerReadyHandler) processRequests() (error, request.Request, *service.ServiceWorker){
