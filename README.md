@@ -24,7 +24,7 @@ You may run as many copies of the worker and the client.
 
 ## TODO
 
-1. Heartbeat checks
+1. ~~Heartbeat checks~~
 2. Service Listings
 3. Realtime monitoring
 4. Logging of events.
