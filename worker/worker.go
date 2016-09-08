@@ -14,27 +14,29 @@ import (
 )
 
 const (
-	HEARTBEAT_INTERVAL = 2 * time.Second
+	HEARTBEAT_INTERVAL = 3 * time.Second * 3
 	POLL_FREQUENCY     = 100 * time.Millisecond
 )
 
 var logger *logrus.Logger
 var env string
+var brokerUrl string
+var serviceName string
 
 type Worker struct{
 	ID 	        string
 	BrokerUrl       string
 	ServiceName     string
-	LastHeartBeatAt time.Time
+	HeartBeatExpiry	time.Time
 	Socket          *zmq.Socket
 	DebugMode       bool
 }
 
-func NewWorker(brokerUrl string, serviceName string, env string) (*Worker, error){
+func NewWorker(brokerUrl, serviceName, env string) (*Worker, error){
 	worker := &Worker{ID:          	  uuid.NewV4().String(),
 		          BrokerUrl:   	  brokerUrl,
 		          ServiceName: 	  serviceName,
-			  LastHeartBeatAt:time.Now(),
+			  HeartBeatExpiry:time.Now().Add(HEARTBEAT_INTERVAL),
 			  DebugMode:      false,
 		}
 
@@ -53,6 +55,24 @@ func NewWorker(brokerUrl string, serviceName string, env string) (*Worker, error
 	}
 
 	return worker, nil
+}
+
+func Connect(brokerUrl, serviceName string) (*Worker){
+	worker, err := NewWorker(brokerUrl, serviceName, env)
+
+	if err != nil {
+		logger.Error(err.Error())
+		panic(err)
+	}
+
+	err = worker.Socket.Connect(brokerUrl)
+
+	if err != nil {
+		logger.Error(fmt.Sprintf("Bind Error: %s", err.Error()))
+		panic(err)
+	}
+
+	return worker
 }
 
 func (worker *Worker) SendReadyMessage() (bool){
@@ -116,7 +136,36 @@ func (worker *Worker) SendResponse(wr WorkerRequest) (bool){
 	return true
 }
 
+
+func (worker *Worker) SendDisconnect() bool{
+	sendStatus := true
+
+	command     := constants.WORKER_DISCONNECT
+	data        := worker.ServiceName
+	SenderID    := worker.ID
+	response    := ""
+	serviceName := worker.ServiceName
+
+	msg, err := request.CreateMessage(SenderID, command, data, response, serviceName, "")
+
+	if err != nil {
+		sendStatus = false
+		logger.Error("[worker.go] Message creation error: %s", err.Error())
+		return sendStatus
+	}
+
+	_, err = worker.Socket.SendMessage(msg)
+
+	if err != nil {
+		sendStatus = false
+		logger.Error(fmt.Sprintf("[worker.go] Error while sending WORKER_DISCONNECT message: %s", err.Error()))
+	}
+
+	return sendStatus
+}
+
 func (worker *Worker) Process(messageChannel chan WorkerRequest){
+LOOP:
 	poller := zmq.NewPoller()
 	poller.Add(worker.Socket, zmq.POLLIN)
 
@@ -141,12 +190,27 @@ func (worker *Worker) Process(messageChannel chan WorkerRequest){
 			}
 
 			if len(msg) > 0 {
-				wr := NewWorkerRequest(msg)
-				if wr.Command == constants.CLIENT_REQUEST_TO_WORKER {
-					messageChannel <- wr
-				}
+				worker.ProcessMessage(msg, messageChannel)
+
 			}
 
+		} else {
+			isReconnect := worker.IsDisconnectAndReconnect()
+			if isReconnect {
+				logger.Info("Reconnection with broker. Broker appears to be unreachable.")
+				sendStatus := worker.SendDisconnect()
+				if !sendStatus {
+					panic("Could not disconnect")
+				}
+				w := worker
+				worker = nil
+				logger.WithFields(map[string]interface{}{
+					"BrokerUrl": w.BrokerUrl,
+					"ServiceName":w.ServiceName,
+				})
+				worker = Connect(w.BrokerUrl, w.ServiceName)
+				goto LOOP
+			}
 		}
 	}
 }
@@ -167,20 +231,7 @@ func GetLogger() *logrus.Logger{
 }
 
 func Start(brokerUrl string, serviceName string) (chan WorkerRequest, *Worker){
-	worker, err := NewWorker(brokerUrl, serviceName, env)
-
-	if err != nil {
-		logger.Error(err.Error())
-		panic(err)
-	}
-
-	err = worker.Socket.Connect(brokerUrl)
-
-	if err != nil {
-		logger.Error(fmt.Sprintf("Bind Error: %s", err.Error()))
-		panic(err)
-	}
-
+	worker := Connect(brokerUrl, serviceName)
 	messageChannel := make(chan WorkerRequest)
 	go worker.Process(messageChannel)
 	return messageChannel, worker

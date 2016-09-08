@@ -5,6 +5,7 @@ import (
 	"github.com/supersid/iris2/constants"
 	"fmt"
 	"github.com/supersid/iris2/service"
+	"errors"
 )
 
 type ProcessMessage interface {
@@ -23,6 +24,9 @@ func (broker *Broker) ProcessMessage(req request.Request) {
 		broker.ClientRequestHandler(req)
 	case constants.WORKER_RESPONSE:
 		broker.WorkerResponseHandler(req)
+	case constants.WORKER_DISCONNECT:
+		broker.WorkerDisconnectHandler(req)
+
 	default:
 		panic("OMFG")
 	}
@@ -54,6 +58,26 @@ func (broker *Broker) FindOrCreateService(serviceName string) (bool, *service.Se
 	}
 
 	return alreadyPresent, s
+}
+
+func (broker *Broker) FindService(serviceName string)(error, *service.Service){
+	var s *service.Service
+	var err error
+	found := false
+
+	for srvName, service := range broker.Services {
+		if srvName == serviceName {
+			s = service
+			found = true
+			break;
+		}
+	}
+
+	if !found {
+		err = errors.New("Service does not exist.")
+	}
+
+	return err, s
 }
 
 func (broker *Broker) AddService (serviceName string, s *service.Service){

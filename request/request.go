@@ -37,8 +37,6 @@ func CreateMessage(senderId, command, data, responseData, serviceName, originalS
 func UnWrapMessage(msg []string) (Request, error){
 	sender  := msg[0]
 	jsonPayload := msg[1]
-	fmt.Println(sender)
-	fmt.Println(jsonPayload)
 
 	payload := make([]string, 6)
 
@@ -47,12 +45,7 @@ func UnWrapMessage(msg []string) (Request, error){
 	if err != nil {
 		return Request{}, err
 	}
-
-	for i, m := range payload {
-		fmt.Printf("%d. %s", i, m)
-		fmt.Println("")
-	}
-
+	
 	req := Request{
 		RequestId:      payload[6],
 		Sender:         sender,

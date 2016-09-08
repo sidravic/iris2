@@ -21,19 +21,21 @@ const (
 var logger *logrus.Logger
 
 type Broker struct{
-	brokerUrl   string
-	Socket      *zmq.Socket
-	Services    map[string]*service.Service
-	Clients     map[string]string
-	DebugMode   bool
+	brokerUrl   		string
+	Socket 		     	*zmq.Socket
+	Services    		map[string]*service.Service
+	Clients     		map[string]string
+	DebugMode   		bool
+	NextWorkHeartBeat	time.Time
 }
 
 func NewBroker(brokerUrl string, env string) (*Broker, error){
 	broker := &Broker{
-		brokerUrl: brokerUrl,
-		Services: make(map[string]*service.Service),
-		Clients:  make(map[string]string),
-		DebugMode: false,
+		brokerUrl: 		brokerUrl,
+		Services: 		make(map[string]*service.Service),
+		Clients:  		make(map[string]string),
+		NextWorkHeartBeat: 	time.Now().Add(HEARTBEAT_FREQUENCY),
+		DebugMode: 		false,
 	}
 
 	socket, err := zmq.NewSocket(zmq.ROUTER)
@@ -83,6 +85,7 @@ func (broker *Broker) Process(){
 			broker.ProcessMessage(req)
 		}else{
 			broker.PurgeWorkers()
+			broker.SendHeartBeat()
 		}
 	}
 }

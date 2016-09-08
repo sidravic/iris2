@@ -52,6 +52,10 @@ func (s *Service) AddServiceWorker(sw *ServiceWorker){
 
 }
 
+func (s *Service) FindServiceWorker(serviceWorkerIdentity string) (*ServiceWorker){
+	return s.Workers[serviceWorkerIdentity]
+}
+
 func (s *Service) AddClientRequest(req request.Request){
 	logger.Info(fmt.Sprintf("[service.go] New Request from client ID %s for %s service", req.ID, req.ServiceName))
 	s.ClientRequest = append(s.ClientRequest, req)
